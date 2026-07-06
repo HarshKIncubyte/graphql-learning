@@ -17,7 +17,7 @@ module Types
     end
 
     def user(id:)
-      User.find(id)
+      User.find_by(id: id)
     end
 
     def posts(published: nil)
