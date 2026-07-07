@@ -13,6 +13,13 @@ require 'simplecov'
 SimpleCov.start 'rails' do
   add_filter '/spec/'
   add_filter '/config/'
+  add_filter '/spec/'
+  add_filter '/config/'
+  add_filter 'app/graphql/types/base_'
+  add_filter 'app/graphql/types/node_type.rb'
+  add_filter 'app/graphql/resolvers/base_resolver.rb'
+  add_filter 'app/jobs/'
+  add_filter 'app/mailers/'
 end
 # Requires supporting ruby files with custom matchers and macros, etc, in
 # spec/support/ and its subdirectories. Files matching `spec/**/*_spec.rb` are
