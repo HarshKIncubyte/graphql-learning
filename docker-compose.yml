@@ -20,9 +20,8 @@ services:
       - "3000:3000"
     depends_on:
       - db
-    environment:
-      DATABASE_URL: postgres://harsh:123456@db/graphql_learning_development
-      RAILS_ENV: development
+    env_file:
+      - .env
 
 volumes:
   postgres_data:
