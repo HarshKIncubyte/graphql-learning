@@ -1,4 +1,6 @@
 class SearchController < ApplicationController
+  CACHE_EXPIRY = 10.minutes
+
   def search
     query = params[:q]
     published = params[:published]
@@ -8,6 +10,18 @@ class SearchController < ApplicationController
       return
     end
 
+    cache_key = "search:#{query.downcase}:published:#{published}"
+
+    cached_result = Rails.cache.fetch(cache_key, expires_in: CACHE_EXPIRY) do
+      perform_search(query, published)
+    end
+
+    render json: cached_result
+  end
+
+  private
+
+  def perform_search(query, published)
     search_definition = {
       query: {
         bool: {
@@ -40,9 +54,10 @@ class SearchController < ApplicationController
         hash[bucket["key_as_string"] || bucket["key"].to_s] = bucket["doc_count"]
       end
 
-    render json: {
+    {
       query: query,
       published_filter: published,
+      cached: true,
       total: results.count,
       aggregations: {
         published_breakdown: published_breakdown
