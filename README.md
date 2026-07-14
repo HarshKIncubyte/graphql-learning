@@ -1,198 +1,74 @@
-# Day 2 – Ruby on Rails API with GraphQL
+## What is Redis
+Redis is an in-memory data store. Data lives in RAM instead of disk making
+it extremely fast. Used for caching, queues, session storage and analytics.
 
-> Part of my **Incubyte COE Learning Journey**
+## Why Redis alongside PostgreSQL
+PostgreSQL is the source of truth — permanent, relational, disk-based.
+Redis is the speed layer — temporary, simple, memory-based.
+Same search query hitting Elasticsearch every time is wasteful.
+Redis caches the result so repeated searches return instantly.
 
-## Overview
+## Caching
+First request hits Elasticsearch and stores result in Redis.
+Second request returns from Redis without touching Elasticsearch.
 
-The objective of this module was to build a **Ruby on Rails API-only application** integrated with **GraphQL** and understand how GraphQL works internally.
+**Proof:**
+First request:  Time: 1.005s  ← Elasticsearch
+Second request: Time: 0.039s  ← Redis cache
+25x faster on cache hit.
 
-This project covers GraphQL fundamentals, including Schema, Types, Queries, Resolvers, Mutations, and testing APIs using GraphiQL.
+## TTL — Time To Live
+Every cache key has an expiry time. After 10 minutes the cache
+expires automatically and the next request hits Elasticsearch again.
 
----
+**Proof:**
+redis-cli ttl "search:ruby:published:"
+(integer) 534  ← seconds remaining
 
-## Learning Objectives
+## Cache Invalidation
+When a Post is created, updated or deleted the search results change.
+Stale cache must be cleared. `after_commit` callback clears all search
+cache keys automatically whenever a Post changes.
 
-- Understand Rails API-only architecture
-- Integrate GraphQL with Rails
-- Learn GraphQL fundamentals
-- Define GraphQL Types
-- Implement Queries and Resolvers
-- Implement CRUD Mutations
-- Handle basic validation errors
-- Test GraphQL APIs using GraphiQL
+**Proof:**
+Before creating post
+redis-cli keys "*"  →  "search:ruby:published:"
+After creating post
+redis-cli keys "*"  →  (empty array)
 
----
+## Redis Data Structures
 
-## Tech Stack
+### String
+Simplest structure. Used for counters and simple values.
+`INCR` atomically increments a counter.
+Used to track how many times each search term is searched.
 
-- Ruby
-- Ruby on Rails (API Only)
-- GraphQL
-- PostgreSQL
-- GraphiQL
+### List
+Ordered collection that allows duplicates.
+`LPUSH` adds to front. `LTRIM` keeps only last N items.
+Used to track recent searches in order.
 
----
+### Set
+Unordered collection that automatically deduplicates.
+`SADD` ignores duplicates silently.
+Used to track unique search terms for analytics.
 
-## Getting Started
-
-```bash
-git clone https://github.com/HarshKIncubyte/graphql-learning.git
-cd graphql-learning
-bundle install
-rails db:create db:migrate
-rails server
-```
-
-Visit `http://localhost:3000/graphiql` to explore the API.
-
----
-
-## Models
-
-### User
-
-- id
-- name
-- email
-
-### Post
-
-- id
-- title
-- published
-
-### Associations
-
-- A User has many Posts
-- A Post belongs to a User
-
----
-
-## GraphQL Features Implemented
-
-### Types
-
-- UserType
-- PostType
-
-### Queries
-
-- Fetch all users
-- Fetch a single user by ID
-- Fetch all posts
-- Filter posts by published status
-
-### Mutations
-
-- Create User
-- Update User
-- Delete User
-
-### Basic Error Handling
-
-Mutation responses include validation errors when an operation fails.
-
-Example:
-
+**Proof:**
 ```json
 {
-  "user": null,
-  "errors": [
-    "Email has already been taken"
-  ]
+  "search_count": 2,
+  "recent_searches": ["ruby", "docker", "rails", "ruby"],
+  "unique_searches": ["ruby", "rails", "docker"]
 }
 ```
+recent_searches shows ruby twice — List allows duplicates.
+unique_searches shows ruby once — Set deduplicates automatically.
 
----
+## RedisService
+All Redis operations extracted into a dedicated service class.
+Single responsibility — SearchController handles HTTP, RedisService handles Redis.
+Reusable across the app and independently testable.
 
-## Sample Query
-
-```graphql
-query {
-  users {
-    id
-    name
-    email
-    posts {
-      title
-      published
-    }
-  }
-}
-```
-
----
-
-## Sample Mutation
-
-```graphql
-mutation {
-  createUser(
-    input: {
-      name: "Alice"
-      email: "alice@example.com"
-    }
-  ) {
-    user {
-      id
-      name
-      email
-    }
-    errors
-  }
-}
-```
-
----
-
-## GraphQL Request Flow
-
-```text
-Client
-   │
-   ▼
-POST /graphql
-   │
-   ▼
-GraphqlController
-   │
-   ▼
-GraphQL Schema
-   │
-   ├───────────────┐
-   ▼               ▼
-QueryType      MutationType
-   │               │
-   ▼               ▼
-Resolver      resolve()
-   │
-   ▼
-ActiveRecord Models
-   │
-   ▼
-GraphQL Types
-   │
-   ▼
-JSON Response
-```
-
----
-
-## Key Learnings
-
-- Built a Rails API-only application using GraphQL.
-- Understood the role of GraphQL Schema.
-- Learned how GraphQL Types define API responses.
-- Implemented Queries and Resolvers.
-- Implemented CRUD Mutations.
-- Understood the difference between QueryType and MutationType.
-- Learned how GraphQL serializes Ruby objects into JSON.
-- Tested GraphQL APIs using GraphiQL.
-
----
-
-## Documentation
-
-Detailed learning notes are available here:
-
-📘 **[GraphQL Learning Notes](./NOTES.md)**
+## Session Storage
+This is an API-only Rails app. Sessions are disabled by design.
+JWT tokens are the correct authentication approach for API-only apps.
