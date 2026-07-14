@@ -1,198 +1,232 @@
-# Day 2 – Ruby on Rails API with GraphQL
-
-> Part of my **Incubyte COE Learning Journey**
-
 ## Overview
-
-The objective of this module was to build a **Ruby on Rails API-only application** integrated with **GraphQL** and understand how GraphQL works internally.
-
-This project covers GraphQL fundamentals, including Schema, Types, Queries, Resolvers, Mutations, and testing APIs using GraphiQL.
-
----
-
-## Learning Objectives
-
-- Understand Rails API-only architecture
-- Integrate GraphQL with Rails
-- Learn GraphQL fundamentals
-- Define GraphQL Types
-- Implement Queries and Resolvers
-- Implement CRUD Mutations
-- Handle basic validation errors
-- Test GraphQL APIs using GraphiQL
+Integrated Elasticsearch into the Rails API to enable full-text search,
+filtering and aggregations on Post data. Elasticsearch runs as a separate
+Docker container alongside Rails and PostgreSQL.
 
 ---
 
-## Tech Stack
+## What is Elasticsearch
 
-- Ruby
-- Ruby on Rails (API Only)
-- GraphQL
-- PostgreSQL
-- GraphiQL
+Elasticsearch is a dedicated search engine optimized for full-text search.
+
+| PostgreSQL | Elasticsearch |
+|------------|---------------|
+| Source of truth | Searchable copy |
+| Slow on text search | Fast on text search |
+| SQL LIKE queries | Query DSL |
+| No relevance scoring | Returns by relevance |
+| No typo tolerance | Handles fuzzy matches |
+
+PostgreSQL stores the data. Elasticsearch makes it searchable.
+They stay in sync automatically through model callbacks.
 
 ---
 
-## Getting Started
+## Docker Setup
 
-```bash
-git clone https://github.com/HarshKIncubyte/graphql-learning.git
-cd graphql-learning
-bundle install
-rails db:create db:migrate
-rails server
+```yaml
+elasticsearch:
+  image: docker.elastic.co/elasticsearch/elasticsearch:8.13.0
+  environment:
+    - discovery.type=single-node
+    - xpack.security.enabled=false
+    - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    - logger.level=WARN
+  ports:
+    - "9200:9200"
+  healthcheck:
+    test: ["CMD-SHELL", "curl -f http://localhost:9200 || exit 1"]
+    interval: 10s
+    timeout: 5s
+    retries: 5
+    start_period: 30s
 ```
 
-Visit `http://localhost:3000/graphiql` to explore the API.
+Verify Elasticsearch is running:
+```bash
+curl http://localhost:9200
+```
 
 ---
 
-## Models
+## Gems
 
-### User
+```ruby
+gem 'elasticsearch-model', '~> 8.0'
+gem 'elasticsearch-rails', '~> 8.0'
+gem 'elasticsearch', '~> 8.0'
+```
 
-- id
-- name
-- email
-
-### Post
-
-- id
-- title
-- published
-
-### Associations
-
-- A User has many Posts
-- A Post belongs to a User
+Version must match Elasticsearch server major version.
+Server is 8.13.0 so gems must be 8.x.
 
 ---
 
-## GraphQL Features Implemented
+## Initializer
 
-### Types
+```ruby
+# config/initializers/elasticsearch.rb
+Elasticsearch::Model.client = Elasticsearch::Client.new(
+  host: ENV.fetch('ELASTICSEARCH_URL', 'http://localhost:9200'),
+  log: false
+)
+```
 
-- UserType
-- PostType
+In Docker — `ELASTICSEARCH_URL=http://elasticsearch:9200`
+`elasticsearch` is the Docker Compose service name.
 
-### Queries
+---
 
-- Fetch all users
-- Fetch a single user by ID
-- Fetch all posts
-- Filter posts by published status
+## Post Model
 
-### Mutations
+```ruby
+class Post < ApplicationRecord
+  include Elasticsearch::Model
+  include Elasticsearch::Model::Callbacks
 
-- Create User
-- Update User
-- Delete User
+  belongs_to :user
+  scope :published, -> { where(published: true) }
 
-### Basic Error Handling
+  after_commit :clear_search_cache
 
-Mutation responses include validation errors when an operation fails.
+  private
 
-Example:
+  def clear_search_cache
+    Rails.cache.delete_matched("search:*")
+  end
+end
+```
 
+- `Elasticsearch::Model` — adds `.search` method to Post
+- `Elasticsearch::Model::Callbacks` — auto syncs on create, update, destroy
+
+### Index existing data
+```bash
+docker compose exec web bundle exec rails console
+Post.import
+```
+
+`=> 0` means zero errors — all posts indexed successfully.
+
+---
+
+## Search Endpoint
+
+`GET /search?q=<query>&published=<true|false>`
+
+---
+
+## Elasticsearch Query DSL
+
+### Basic search
+```ruby
+Post.search("ruby")
+```
+
+### Bool query with filter
+```ruby
+{
+  query: {
+    bool: {
+      must: {
+        match: { title: query }
+      },
+      filter: {
+        term: { published: true }
+      }
+    }
+  }
+}
+```
+
+### Bool query components
+
+- `must` — full-text search, contributes to relevance score
+- `filter` — exact match, does not affect relevance score
+- `bool` — combines multiple conditions together
+
+### With aggregations
+```ruby
+{
+  query: { bool: { must: { match: { title: query } } } },
+  aggs: {
+    published_breakdown: {
+      terms: { field: :published }
+    }
+  }
+}
+```
+
+Aggregations return analytics alongside results:
+```json
+"aggregations": {
+  "published_breakdown": {
+    "true": 3,
+    "false": 1
+  }
+}
+```
+
+---
+
+## Sample Requests
+
+```bash
+# Basic search
+curl "http://localhost:3000/search?q=ruby"
+
+# Filter published only
+curl "http://localhost:3000/search?q=rails&published=true"
+
+# Filter unpublished only
+curl "http://localhost:3000/search?q=rails&published=false"
+```
+
+### Sample Response
 ```json
 {
-  "user": null,
-  "errors": [
-    "Email has already been taken"
+  "query": "rails",
+  "published_filter": null,
+  "total": 3,
+  "aggregations": {
+    "published_breakdown": {
+      "true": 2,
+      "false": 1
+    }
+  },
+  "results": [
+    {
+      "id": 1,
+      "title": "Learning Ruby on Rails",
+      "published": true,
+      "user_id": 1
+    }
   ]
 }
 ```
 
 ---
 
-## Sample Query
+## Why Separate Search Endpoint
 
-```graphql
-query {
-  users {
-    id
-    name
-    email
-    posts {
-      title
-      published
-    }
-  }
-}
-```
+A dedicated `GET /search` endpoint was chosen over modifying the existing
+GraphQL posts resolver for these reasons:
 
----
-
-## Sample Mutation
-
-```graphql
-mutation {
-  createUser(
-    input: {
-      name: "Alice"
-      email: "alice@example.com"
-    }
-  ) {
-    user {
-      id
-      name
-      email
-    }
-    errors
-  }
-}
-```
-
----
-
-## GraphQL Request Flow
-
-```text
-Client
-   │
-   ▼
-POST /graphql
-   │
-   ▼
-GraphqlController
-   │
-   ▼
-GraphQL Schema
-   │
-   ├───────────────┐
-   ▼               ▼
-QueryType      MutationType
-   │               │
-   ▼               ▼
-Resolver      resolve()
-   │
-   ▼
-ActiveRecord Models
-   │
-   ▼
-GraphQL Types
-   │
-   ▼
-JSON Response
-```
+- **Single Responsibility** — SearchController owns search, PostsResolver owns CRUD
+- **Independent caching** — search cache has different TTL and invalidation strategy
+- **Aggregations** — analytics data does not belong inside a posts GraphQL response
+- **HTTP caching** — GET requests are cacheable at HTTP level, GraphQL POST is not
+- **Rate limiting** — search can be rate limited independently without affecting GraphQL
+- **Security** — Elasticsearch is isolated from the GraphQL layer
 
 ---
 
 ## Key Learnings
-
-- Built a Rails API-only application using GraphQL.
-- Understood the role of GraphQL Schema.
-- Learned how GraphQL Types define API responses.
-- Implemented Queries and Resolvers.
-- Implemented CRUD Mutations.
-- Understood the difference between QueryType and MutationType.
-- Learned how GraphQL serializes Ruby objects into JSON.
-- Tested GraphQL APIs using GraphiQL.
-
----
-
-## Documentation
-
-Detailed learning notes are available here:
-
-📘 **[GraphQL Learning Notes](./NOTES.md)**
+- Elasticsearch is a search engine — not a replacement for PostgreSQL
+- Model callbacks keep Elasticsearch in sync automatically
+- Bool query combines must (full-text) and filter (exact match)
+- Must affects relevance score, filter does not
+- Aggregations provide analytics alongside search results
+- Elasticsearch version must match gem major version
+- Service name in Docker Compose is used as hostname
+- `Post.import` indexes all existing records into Elasticsearch
