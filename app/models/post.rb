@@ -4,4 +4,12 @@ class Post < ApplicationRecord
 
   belongs_to :user
   scope :published, -> { where(published: true) }
+
+  after_commit :clear_search_cache
+
+  private
+
+  def clear_search_cache
+    Rails.cache.delete_matched("search:*")
+  end
 end
