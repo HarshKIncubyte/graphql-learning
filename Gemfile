@@ -19,6 +19,8 @@ gem "tzinfo-data", platforms: %i[ windows jruby ]
 gem 'elasticsearch-model', '~> 8.0'
 gem 'elasticsearch-rails', '~> 8.0'
 gem 'elasticsearch', '~> 8.0'
+# Redis
+gem 'redis', '~> 5.0'
 # Use the database-backed adapters for Rails.cache, Active Job, and Action Cable
 gem "solid_cache"
 gem "solid_queue"
