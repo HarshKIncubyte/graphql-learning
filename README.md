@@ -6,7 +6,8 @@ This repository contains a **Ruby on Rails API-only application** built
 progressively across multiple days of the Incubyte COE program.
 
 Starting with GraphQL on Day 2, the project evolved through testing,
-Docker, Elasticsearch and Redis caching.
+Docker, Elasticsearch, Redis caching, and AI-assisted development with
+Claude Code plugins.
 
 ---
 
@@ -19,6 +20,7 @@ Docker, Elasticsearch and Redis caching.
 | [day5](https://github.com/HarshKIncubyte/graphql-learning/tree/day5) | Day 5 | Dockerizing Rails Application | [Notes](./docs/day5-docker.md) |
 | [day6](https://github.com/HarshKIncubyte/graphql-learning/tree/day6) | Day 6 | Elasticsearch Integration in Rails | [Notes](./docs/day6-elasticsearch.md) |
 | [day7](https://github.com/HarshKIncubyte/graphql-learning/tree/day7) | Day 7 | Backend Enhancement: Redis Caching | [Notes](./docs/day7-redis-caching.md) |
+| [day8](https://github.com/HarshKIncubyte/graphql-learning/tree/day8) | Day 8 | AI Integration: Bee & Learn Plugins | [Notes](./docs/day8-bee-learn.md) |
 
 ---
 
@@ -34,7 +36,7 @@ Docker, Elasticsearch and Redis caching.
 | Docker | — | Containerization |
 | Elasticsearch | 8.13.0 | Full-text Search |
 | Redis | 7.2 | Caching & Data Structures |
-
+| Claude Code + Bee | — | AI-assisted spec-driven development |
 
 ---
 
@@ -43,7 +45,7 @@ Docker, Elasticsearch and Redis caching.
 ```bash
 git clone https://github.com/HarshKIncubyte/graphql-learning.git
 cd graphql-learning
-git checkout day7  # latest branch with all features
+git checkout day8  # latest branch with all features
 docker compose up --build
 ```
 
