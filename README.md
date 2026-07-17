@@ -1,148 +1,83 @@
-# Day 8 — AI Integration: BEE & Learn Plugins
+# Day 10 — OOP Principles & TDD Reflection with Sandi Metz
 
-## What is Bee
+## What I Learned
 
-Bee is a Claude Code plugin built by Incubyte that adds spec-driven engineering
-discipline on top of AI coding. Plain Claude Code will happily write code
-straight from a one-line prompt — no spec, no architecture check, no
-guaranteed tests. Bee sits in front of that and asks: how big is this task,
-and how risky is it — then it picks the right amount of process for that
-specific task.
+### All the Little Things (RailsConf 2014)
 
-**The mental model:**
+- **Small objects, small methods** — every method should be so small you can read it in one glance. If you need to scroll, it's too big.
+- **Shape of the code** — squint at a method. Lots of indentation and nested ifs means it's doing too many things. Good code is flat.
+- **Color of the code** — too many colors in one method means too many concerns mixed together.
+- **Shameless green** — write the simplest code first to get to green. Don't be clever on the first pass. Refactor after.
+- **Make the change easy, then make the easy change** — clean the structure first, then add the feature. Never do both at once.
+- **Duplication is cheaper than the wrong abstraction** — don't extract too early. A bad abstraction is harder to undo than duplicated code.
+- **The cost of conditionals** — every `if` is a fork. Replace conditionals with small objects that each handle one case.
+- **Open/Closed in practice** — new case = new object. Existing code untouched.
 
-> The developer is the driver. Claude Code is the car. Bee is the GPS.
+### Get a Whiff of This (RailsConf 2016)
 
-Bee doesn't take the wheel. It suggests a route (triage → spec → architecture
-→ code → test → review) but the developer can always override, skip a step,
-or say "just code it."
+- **Name the smell first** — once you name it, the fix is obvious.
+- **Smells come in clusters** — find one, you'll find two or three more nearby.
+- **The cure is almost always extraction** — long method → extract method. Large class → extract class.
+- **Refactoring is not rewriting** — small, safe, incremental steps. Tests green at every step.
+- **The squint test is free** — no tool needed. Just squint. If the shape looks wrong, it is wrong.
 
-## Triage: how Bee decides how much process to apply
+**5 smell categories:**
 
-Bee scores every task on two axes:
-
-| Size | Example | Bee's response |
-|---|---|---|
-| TRIVIAL | Typo, one-line config change | Fixes it immediately, no ceremony |
-| SMALL | Single-file bug, small UI tweak | Quick confirmation, then builds |
-| FEATURE | New endpoint, multi-file change | Full: spec → architecture → code → test → verify → review |
-| EPIC | New subsystem | Discovery phase first, then phased delivery |
-
-| Risk | Example | Effect |
-|---|---|---|
-| LOW | Internal tool, easy to revert | Lighter spec, simpler verification |
-| MODERATE | User-facing, business logic | Standard spec, thorough tests, review recommended |
-| HIGH | Payments, auth, migrations | Deep spec, defensive tests, feature flag + QA |
-
-A typo fix and a payments feature never get the same treatment — that's the
-whole point.
-
-## Bee's architecture
-
-- **10 commands** — `/bee:sdd` (main workflow), `/bee:start` (cost/risk-aware
-  variant), `/bee:discover` (PM-style requirements interview, produces a PRD,
-  writes no code), `/bee:review`, `/bee:qc`, `/bee:architect`, `/bee:onboard`,
-  `/bee:migrate`, `/bee:coach`, `/bee:help`.
-- **27 specialist agents** — e.g. `context-gatherer` (reads the codebase for
-  conventions before anything is built), `spec-builder`, `architecture-advisor`,
-  `slice-coder` / `slice-tester` (code and test one vertical slice at a time),
-  `sdd-verifier` (quality gate), `reviewer` (final ship recommendation).
-- **Artifacts** — specs land in `docs/specs/`, architecture decisions in
-  `docs/adrs/`, and session progress in `.claude/bee-state.local.md` so a
-  feature survives closing the terminal mid-build.
-
-## What is the Learn plugin
-
-Learn is a separate plugin for learning-by-building: it generates a
-project-based curriculum, paces it to your skill level, tracks progress
-across sessions, and quizzes you along the way. Its commands live in
-`~/.claude/plugins/.../learn/commands/`: `start`, `next`, `explain`, `quiz`,
-`review`, `analyze`, `help`. Entry point is `/learn:start`.
-
-## Installing both plugins
-
-```
-/plugin marketplace add incubyte/ai-plugins
-/plugin install bee@incubyte-plugins
-/plugin install learn@incubyte-plugins
-```
-
-Both installed cleanly at user scope, so they're available across projects,
-not just this repo.
-
-## Exercise: using Bee for a real feature
-
-**Task given to Bee:** add pagination to the `users` GraphQL query.
-
-```
-/bee:sdd add pagination to the users GraphQL query
-```
-
-**What Bee did, step by step:**
-
-1. **Context gathering** — read `query_type.rb`, the existing user specs, and
-   `spec/support/graphql_helpers.rb` to understand existing conventions. It
-   noticed the Relay `BaseConnection` / `BaseEdge` boilerplate already existed
-   in the codebase, generated but not yet used anywhere.
-
-2. **Architecture question** — Bee paused and asked me to choose a pagination
-   style before writing anything:
-   - Relay cursor (`first`/`after`, using the existing unused boilerplate) —
-     the graphql-ruby idiomatic default, or
-   - Simple `limit`/`offset` — easier to reason about, doesn't touch the
-     Relay scaffolding.
-
-   I chose **limit/offset** — I wanted to fully understand what got built
-   rather than adopt a pattern (Relay cursors) I hadn't learned yet. Bee
-   confirmed this integrates fine with Apollo Client later (a `fetchMore` call
-   plus a small cache `merge` function), so it doesn't block the Day 9
-   frontend work.
-
-3. **Code** — Bee added `limit`/`offset` arguments to the `users` field and a
-   resolver that conditionally applies `.limit()` / `.offset()`:
-
-   ```ruby
-   argument :limit, Int, required: false
-   argument :offset, Int, required: false
-
-   def users(limit: nil, offset: nil)
-     query = User.all
-     query = query.limit(limit) if limit
-     query = query.offset(offset) if offset
-     query
-   end
-   ```
-
-4. **Tests** — Bee wrote three request specs covering limit alone, offset
-   alone, and limit+offset combined, asserting exact result sets and ordering
-   rather than just counts.
-
-5. **State tracking** — progress was written to `.claude/bee-state.local.md`
-   throughout, so the session could have been resumed if I'd closed the
-   terminal mid-task.
-
-## AI-assisted workflow, in short
-
-| Step | Who drove it |
+| Group | Examples |
 |---|---|
-| Deciding *what* to build | Me |
-| Reading existing code for conventions | Bee (context-gatherer) |
-| Architecture decision (Relay vs limit/offset) | Bee proposed, I decided |
-| Writing the resolver + tests | Bee |
-| Reviewing the diff before commit | Me |
+| Bloaters | Long Method, Large Class, Data Clumps |
+| OO Abusers | Switch statements, Refused Bequest |
+| Change Preventers | Divergent Change, Shotgun Surgery |
+| Dispensables | Dead code, duplicate code, speculative code |
+| Couplers | Feature Envy, Inappropriate Intimacy |
 
-## Reflection: Bee vs. manual coding
+## What I Built
 
-The code itself for this task was simple — a few lines of resolver logic I
-could have written by hand quickly. Bee's real value showed up before any
-code was written: it read the existing codebase first, and paused to ask me
-an architecture question (Relay cursors vs. limit/offset) instead of silently
-picking one on its own. That's the kind of decision that's easy to miss when
-coding solo under time pressure, and having it surfaced explicitly made it a
-conscious choice rather than a default.
+### Code Smells Found
 
-The tradeoff is speed: Bee's context-gathering and question-asking add a bit
-of overhead compared to a direct prompt. For something truly trivial that
-overhead isn't worth it — which is exactly why Bee's own triage step exists,
-to skip that ceremony for TRIVIAL/SMALL tasks and reserve the full process for
-changes where an architecture decision actually matters.
+- `SearchController#perform_search` — **Long Method**. Building the ES query, executing it, and formatting the response all in one place.
+- `SearchController#track_search` — **Inappropriate Intimacy**. Controller knowing 3 internal Redis steps for one logical action.
+- `GithubService#fetch_user` — no timeout or status check on the HTTP call.
+
+### Extracted PostSearchService
+
+`perform_search` was 40 lines doing 3 jobs. Extracted to a service object with one public `#call` method. Each private method does one thing.
+
+```ruby
+# Before
+def perform_search(query, published)
+  search_definition = { query: { bool: { ... } }, aggs: { ... } }
+  # build, execute, serialize all in one place — 40 lines
+end
+
+# After
+def perform_search(query, published)
+  PostSearchService.new(query: query, published: published).call
+end
+```
+
+### Added RedisService.track
+
+```ruby
+# Before
+RedisService.increment_search_count(query)
+RedisService.add_to_recent_searches(query)
+RedisService.add_to_unique_searches(query)
+
+# After
+RedisService.track(query)
+```
+
+### Other Refactors
+
+- Extracted **SearchCacheInvalidator** — Post model no longer handles cache logic. Delegates to a dedicated service.
+- Fixed **GithubService** — added `read_timeout: 5` and response status checks.
+- Fixed Rubocop offenses — string literals and trailing whitespace across the codebase.
+
+## Reflection
+
+The biggest shift today was learning to name the smell before touching the code. Once you say "this is a Long Method" the fix is obvious. Without the name you just stare at code.
+
+Sandi's rule — make the change easy, then make the easy change — is something I'll carry into every feature going forward.
+
+Duplication is cheaper than the wrong abstraction. Wait until the pattern is clear before extracting.
