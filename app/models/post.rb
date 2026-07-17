@@ -10,6 +10,6 @@ class Post < ApplicationRecord
   private
 
   def clear_search_cache
-    Rails.cache.delete_matched("search:*")
+    SearchCacheInvalidator.new.call
   end
 end
