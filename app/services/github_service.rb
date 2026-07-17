@@ -4,7 +4,6 @@ require "json"
 class GithubService
   BASE_URL = "https://api.github.com"
 
-  # SMELL: No status check or timeout — a 404 parses as valid data, slow API hangs forever.
   def fetch_user(username)
     uri = URI("#{BASE_URL}/users/#{username}")
     response = Net::HTTP.start(uri.host, uri.port, use_ssl: true, read_timeout: 5) do |http|
