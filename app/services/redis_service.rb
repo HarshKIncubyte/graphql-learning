@@ -2,6 +2,12 @@ class RedisService
   REDIS = Redis.new(url: ENV.fetch("REDIS_URL", "redis://localhost:6379/0"))
   RECENT_SEARCHES_LIMIT = 10
 
+  def self.track(term)
+    increment_search_count(term)
+    add_to_recent_searches(term)
+    add_to_unique_searches(term)
+  end
+
   def self.increment_search_count(term)
     REDIS.incr("search_count:#{term.downcase}")
   end

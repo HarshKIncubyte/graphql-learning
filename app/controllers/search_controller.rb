@@ -30,9 +30,7 @@ class SearchController < ApplicationController
   # SMELL: The controller is telling RedisService exactly what 3 steps to do.
   # Controller should just say "track this" and RedisService handles the rest.
   def track_search(query)
-    RedisService.increment_search_count(query)
-    RedisService.add_to_recent_searches(query)
-    RedisService.add_to_unique_searches(query)
+    RedisService.track(query)
   end
 
   # SMELL: One method doing 3 jobs — build ES query, run it, format response.
