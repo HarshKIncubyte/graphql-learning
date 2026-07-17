@@ -109,7 +109,7 @@ RSpec.describe 'Users Query', type: :request do
       expect(data['email']).to eq(user.email)
       expect(data['name']).to eq(user.name)
     end
-    
+
     it 'returns nil for non-existent user' do
       query = <<~GRAPHQL
         query {
